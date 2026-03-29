@@ -26,6 +26,16 @@ app.use(
     })
 );
 
+// Health Check
+app.get("/", (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: "Ahi Jewellery API is running globally!",
+        version: "1.0.0",
+        docs: "/api/v1/"
+    });
+});
+
 // Mount routers
 app.use("/api/v1", routes);
 
