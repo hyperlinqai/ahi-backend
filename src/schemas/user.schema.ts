@@ -71,6 +71,6 @@ export const createUserSchema = z.object({
             .max(15, "Phone number must be 15 characters or fewer")
             .regex(/^[0-9+\-\s()]+$/, "Invalid phone number"),
         password: z.string().min(8, "Password must be at least 8 characters long"),
-        role: z.enum(["USER", "ADMIN"]).default("ADMIN"),
+        role: z.enum(["USER", "ADMIN", "MANAGER", "SUPPORT", "CATALOG_MANAGER"]).default("ADMIN"),
     }),
 });

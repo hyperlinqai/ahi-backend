@@ -43,12 +43,30 @@ export const createRazorpayOrder = async (req: Request, res: Response, next: Nex
 
         const razorpayOrder = await razorpay.orders.create(options);
 
-        const [payment] = await db.insert(payments).values({
-            userId,
-            orderId,
-            razorpayOrderId: razorpayOrder.id,
-            amount: order.total,
-        }).returning();
+        const existingPayment = await db.query.payments.findFirst({
+            where: eq(payments.orderId, orderId)
+        });
+
+        let payment;
+        if (existingPayment) {
+            const [updatedPayment] = await db.update(payments).set({
+                userId,
+                razorpayOrderId: razorpayOrder.id,
+                amount: order.total,
+                status: "PENDING",
+                razorpayPaymentId: null,
+                razorpaySignature: null,
+                updatedAt: new Date()
+            }).where(eq(payments.id, existingPayment.id)).returning();
+            payment = updatedPayment;
+        } else {
+            [payment] = await db.insert(payments).values({
+                userId,
+                orderId,
+                razorpayOrderId: razorpayOrder.id,
+                amount: order.total,
+            }).returning();
+        }
 
         res.status(200).json({
             success: true,

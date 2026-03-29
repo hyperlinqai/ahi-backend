@@ -176,7 +176,8 @@ export const getAllReviewsAdmin = async (req: Request, res: Response, next: Next
                 .where(
                     or(
                         ilike(products.title, `%${search}%`),
-                        ilike(users.name, `%${search}%`)
+                        ilike(users.name, `%${search}%`),
+                        ilike(users.email, `%${search}%`)
                     )
                 );
 

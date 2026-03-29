@@ -14,7 +14,7 @@ import { relations, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 
 // Enums
-export const roleEnum = pgEnum('Role', ['USER', 'ADMIN']);
+export const roleEnum = pgEnum('Role', ['USER', 'ADMIN', 'MANAGER', 'SUPPORT', 'CATALOG_MANAGER']);
 export const couponTypeEnum = pgEnum('CouponType', ['FLAT', 'PERCENTAGE', 'FREE_SHIPPING']);
 export const orderStatusEnum = pgEnum('OrderStatus', ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED']);
 export const paymentStatusEnum = pgEnum('PaymentStatus', ['PENDING', 'PAID', 'FAILED', 'REFUNDED']);
@@ -198,11 +198,12 @@ export const cartItems = pgTable('CartItem', {
   id: text('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
   cartId: text('cartId').references(() => carts.id, { onDelete: 'cascade' }).notNull(),
   productId: text('productId').references(() => products.id, { onDelete: 'cascade' }).notNull(),
+  variantId: text('variantId').references(() => productVariants.id, { onDelete: 'cascade' }).notNull(),
   quantity: integer('quantity').default(1).notNull(),
   createdAt: timestamp('createdAt', { precision: 3, mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp('updatedAt', { precision: 3, mode: 'date' }).defaultNow().notNull(),
 }, (t) => [
-  unique().on(t.cartId, t.productId),
+  unique().on(t.cartId, t.variantId),
 ]);
 
 export const orders = pgTable('Order', {
@@ -457,6 +458,7 @@ export const cartsRelations = relations(carts, ({ one, many }) => ({
 export const cartItemsRelations = relations(cartItems, ({ one }) => ({
   cart: one(carts, { fields: [cartItems.cartId], references: [carts.id] }),
   product: one(products, { fields: [cartItems.productId], references: [products.id] }),
+  variant: one(productVariants, { fields: [cartItems.variantId], references: [productVariants.id] }),
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({

@@ -51,6 +51,7 @@ export const placeOrder = async (req: Request, res: Response, next: NextFunction
                 coupon: true,
                 items: {
                     with: {
+                        variant: true,
                         product: {
                             with: { variants: true }
                         }
@@ -66,8 +67,11 @@ export const placeOrder = async (req: Request, res: Response, next: NextFunction
 
         // 3. Begin Strict Validation Flow explicitly checking over Variant layers recursively
         for (const item of cart.items) {
-            const totalStock = item.product.variants.reduce((acc: number, variant: any) => acc + variant.stock, 0);
-            if (item.quantity > totalStock) {
+            if (item.variant.productId !== item.productId) {
+                return next(new AppError(`Selected variant is invalid for ${item.product.title}`, 400));
+            }
+
+            if (item.quantity > item.variant.stock) {
                 return next(new AppError(`Critically insufficient inclusive bounding mapping stock levels intercepting ${item.product.title} structurally`, 400));
             }
         }
@@ -107,9 +111,9 @@ export const placeOrder = async (req: Request, res: Response, next: NextFunction
             const itemsData = cart.items.map(item => ({
                 orderId: order.id,
                 productId: item.productId,
-                variantId: item.product.variants[0].id, // Defaulting conceptually to their first active mapped Variant natively securely 
+                variantId: item.variantId,
                 productName: item.product.title,
-                sku: item.product.variants[0].sku,
+                sku: item.variant.sku,
                 price: item.product.price,
                 quantity: item.quantity
             }));
@@ -118,7 +122,7 @@ export const placeOrder = async (req: Request, res: Response, next: NextFunction
 
             // 4b. Stock Adjustments & Accounting Ledgers dynamically!
             for (const item of cart.items) {
-                const variantTarget = item.product.variants[0]; // Assuming default variant dynamically natively
+                const variantTarget = item.variant;
 
                 // Decrease explicitly safely capturing returned values for safety checks
                 const [updatedVariant] = await tx.update(productVariants)

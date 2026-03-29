@@ -46,6 +46,9 @@ export const getCart = async (req: Request, res: Response, next: NextFunction) =
                 coupon: true,
                 items: {
                     with: {
+                        variant: {
+                            columns: { id: true, name: true, value: true, sku: true, stock: true }
+                        },
                         product: {
                             columns: { id: true, title: true, slug: true, price: true },
                             with: { images: { limit: 1 } }
@@ -76,7 +79,7 @@ export const getCart = async (req: Request, res: Response, next: NextFunction) =
 export const addToCart = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = req.user!.id;
-        const { productId, quantity } = req.body;
+        const { productId, variantId, quantity } = req.body;
 
         const product = await db.query.products.findFirst({
             where: eq(products.id, productId),
@@ -85,9 +88,10 @@ export const addToCart = async (req: Request, res: Response, next: NextFunction)
 
         if (!product) return next(new AppError("Product explicitly not found", 404));
 
-        const totalStock = product.variants.reduce((acc: number, variant: any) => acc + variant.stock, 0);
-        if (totalStock < quantity) {
-            return next(new AppError("Insufficient inclusive aggregated stock bounds", 400));
+        const selectedVariant = product.variants.find((variant: any) => variant.id === variantId);
+        if (!selectedVariant) return next(new AppError("Selected variant does not belong to this product", 400));
+        if (selectedVariant.stock < quantity) {
+            return next(new AppError("Insufficient stock for the selected variant", 400));
         }
 
         let cart = await db.query.carts.findFirst({ where: eq(carts.userId, userId) });
@@ -97,13 +101,15 @@ export const addToCart = async (req: Request, res: Response, next: NextFunction)
         }
 
         const existingItem = await db.query.cartItems.findFirst({
-            where: and(eq(cartItems.cartId, cart.id), eq(cartItems.productId, productId))
+            where: and(eq(cartItems.cartId, cart.id), eq(cartItems.variantId, variantId))
         });
 
         let cartItemRes;
         if (existingItem) {
             const updatedQuantity = existingItem.quantity + quantity;
-            if (updatedQuantity > totalStock) return next(new AppError("Requested quantity strictly exceeds current aggregated bounds", 400));
+            if (updatedQuantity > selectedVariant.stock) {
+                return next(new AppError("Requested quantity strictly exceeds current variant stock", 400));
+            }
 
             const [updated] = await db.update(cartItems)
                 .set({ quantity: updatedQuantity, updatedAt: new Date() })
@@ -114,6 +120,7 @@ export const addToCart = async (req: Request, res: Response, next: NextFunction)
             const [created] = await db.insert(cartItems).values({
                 cartId: cart.id,
                 productId,
+                variantId,
                 quantity
             }).returning();
             cartItemRes = created;
@@ -138,16 +145,15 @@ export const updateCartItem = async (req: Request, res: Response, next: NextFunc
 
         const cartItem = await db.query.cartItems.findFirst({
             where: eq(cartItems.id, itemId),
-            with: { cart: true, product: { with: { variants: true } } }
+            with: { cart: true, variant: true }
         });
 
         if (!cartItem || cartItem.cart.userId !== userId) {
             return next(new AppError("CartItem implicitly missing tracking natively", 404));
         }
 
-        const totalStock = cartItem.product.variants.reduce((acc: number, variant: any) => acc + variant.stock, 0);
-        if (quantity > totalStock) {
-            return next(new AppError("Requested bound safely exceeds active stock levels", 400));
+        if (quantity > cartItem.variant.stock) {
+            return next(new AppError("Requested quantity exceeds stock for the selected variant", 400));
         }
 
         const [updatedItem] = await db.update(cartItems)
@@ -214,7 +220,7 @@ export const clearCart = async (req: Request, res: Response, next: NextFunction)
 export const mergeCart = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = req.user!.id;
-        const { items } = req.body; // Array of { productId, quantity }
+        const { items } = req.body; // Array of { productId, variantId, quantity }
 
         let cart = await db.query.carts.findFirst({ where: eq(carts.userId, userId) });
         if (!cart) {
@@ -230,17 +236,20 @@ export const mergeCart = async (req: Request, res: Response, next: NextFunction)
 
             if (!product) return null;
 
-            const totalStock = product.variants.reduce((acc: number, variant: any) => acc + variant.stock, 0);
-            const qty = Math.min(item.quantity, totalStock);
+            const selectedVariant = product.variants.find((variant: any) => variant.id === item.variantId);
+            if (!selectedVariant) return null;
+
+            const qty = Math.min(item.quantity, selectedVariant.stock);
 
             if (qty <= 0) return null;
 
             return db.insert(cartItems).values({
                 cartId: cart.id,
                 productId: item.productId,
+                variantId: item.variantId,
                 quantity: qty
             }).onConflictDoUpdate({
-                target: [cartItems.cartId, cartItems.productId],
+                target: [cartItems.cartId, cartItems.variantId],
                 set: {
                     quantity: sql`${cartItems.quantity} + EXCLUDED.quantity`,
                     updatedAt: new Date()

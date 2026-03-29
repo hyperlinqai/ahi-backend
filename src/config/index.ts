@@ -17,6 +17,8 @@ export const config = {
         keySecret: process.env.RAZORPAY_KEY_SECRET || "rzp_test_fallback_secret",
     },
     cors: {
-        origins: ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002"],
+        origins: process.env.CORS_ORIGINS
+            ? process.env.CORS_ORIGINS.split(",").map((s) => s.trim())
+            : ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:5173", "http://localhost:5174"],
     },
 };
