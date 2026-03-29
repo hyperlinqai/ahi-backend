@@ -1,0 +1,74 @@
+src/check_db.ts(1,20): error TS2307: Cannot find module './prisma' or its corresponding type declarations.
+src/controllers/couponController.ts(24,29): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/couponController.ts(28,29): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/couponController.ts(34,17): error TS2345: Argument of type 'SQL<unknown> | undefined' is not assignable to parameter of type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/controllers/couponController.ts(42,17): error TS2345: Argument of type 'SQL<unknown> | undefined' is not assignable to parameter of type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/controllers/couponController.ts(49,17): error TS2345: Argument of type 'SQL<unknown> | undefined' is not assignable to parameter of type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/controllers/orderController.ts(314,37): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/orderController.ts(315,37): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/orderController.ts(317,39): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/orderController.ts(318,37): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/productController.ts(32,39): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/productController.ts(33,36): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/productController.ts(34,52): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/productController.ts(36,39): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/productController.ts(37,39): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/productController.ts(43,29): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/productController.ts(160,29): error TS2345: Argument of type 'SQL<unknown> | undefined' is not assignable to parameter of type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/controllers/productController.ts(166,39): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/productController.ts(167,39): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/productController.ts(168,39): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/returnController.ts(22,29): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/returnController.ts(40,33): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/returnController.ts(42,33): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/reviewController.ts(103,17): error TS2322: Type '{ id: string; createdAt: Date; url: string; reviewId: string; }[]' is not assignable to type 'never[]'.
+  Type '{ id: string; createdAt: Date; url: string; reviewId: string; }' is not assignable to type 'never'.
+src/controllers/reviewController.ts(168,29): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/reviewController.ts(184,33): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/reviewController.ts(186,33): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/userController.ts(12,20): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(left: PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>, right: string | SQLWrapper): SQL<...>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | SQLWrapper'.
+      Type 'undefined' is not assignable to type 'string | SQLWrapper'.
+  Overload 2 of 3, '(left: Aliased<string | undefined>, right: string | SQLWrapper | undefined): SQL<unknown>', gave the following error.
+    Argument of type 'PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>' is not assignable to parameter of type 'Aliased<string | undefined>'.
+      Type 'PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>' is missing the following properties from type 'Aliased<string | undefined>': sql, fieldAlias
+  Overload 3 of 3, '(left: never, right: unknown): SQL<unknown>', gave the following error.
+    Argument of type 'PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>' is not assignable to parameter of type 'never'.
+src/controllers/userController.ts(55,20): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(left: PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>, right: string | SQLWrapper): SQL<...>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | SQLWrapper'.
+      Type 'undefined' is not assignable to type 'string | SQLWrapper'.
+  Overload 2 of 3, '(left: Aliased<string | undefined>, right: string | SQLWrapper | undefined): SQL<unknown>', gave the following error.
+    Argument of type 'PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>' is not assignable to parameter of type 'Aliased<string | undefined>'.
+      Type 'PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>' is missing the following properties from type 'Aliased<string | undefined>': sql, fieldAlias
+  Overload 3 of 3, '(left: never, right: unknown): SQL<unknown>', gave the following error.
+    Argument of type 'PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>' is not assignable to parameter of type 'never'.
+src/controllers/userController.ts(78,20): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(left: PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>, right: string | SQLWrapper): SQL<...>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | SQLWrapper'.
+      Type 'undefined' is not assignable to type 'string | SQLWrapper'.
+  Overload 2 of 3, '(left: Aliased<string | undefined>, right: string | SQLWrapper | undefined): SQL<unknown>', gave the following error.
+    Argument of type 'PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>' is not assignable to parameter of type 'Aliased<string | undefined>'.
+      Type 'PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>' is missing the following properties from type 'Aliased<string | undefined>': sql, fieldAlias
+  Overload 3 of 3, '(left: never, right: unknown): SQL<unknown>', gave the following error.
+    Argument of type 'PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>' is not assignable to parameter of type 'never'.
+src/controllers/userController.ts(94,20): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(left: PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>, right: string | SQLWrapper): SQL<...>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | SQLWrapper'.
+      Type 'undefined' is not assignable to type 'string | SQLWrapper'.
+  Overload 2 of 3, '(left: Aliased<string | undefined>, right: string | SQLWrapper | undefined): SQL<unknown>', gave the following error.
+    Argument of type 'PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>' is not assignable to parameter of type 'Aliased<string | undefined>'.
+      Type 'PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>' is missing the following properties from type 'Aliased<string | undefined>': sql, fieldAlias
+  Overload 3 of 3, '(left: never, right: unknown): SQL<unknown>', gave the following error.
+    Argument of type 'PgColumn<{ name: "id"; tableName: "User"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: undefined; baseColumn: never; identity: undefined; generated: undefined; }, {}, {}>' is not assignable to parameter of type 'never'.
+src/controllers/userController.ts(122,29): error TS2345: Argument of type 'SQL<unknown> | undefined' is not assignable to parameter of type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/controllers/userController.ts(129,29): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/controllers/userController.ts(133,29): error TS2345: Argument of type 'SQL<unknown>' is not assignable to parameter of type 'never'.
+src/scripts/seed_padma.ts(1,20): error TS2307: Cannot find module '../prisma/index' or its corresponding type declarations.
+src/scripts/verify_padma.ts(1,20): error TS2307: Cannot find module '../prisma/index' or its corresponding type declarations.

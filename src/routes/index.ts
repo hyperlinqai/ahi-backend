@@ -1,0 +1,48 @@
+import { Router } from "express";
+import authRoutes from "./authRoutes";
+import userRoutes from "./userRoutes";
+import categoryRoutes from "./categoryRoutes";
+import productRoutes from "./productRoutes";
+import inventoryRoutes from "./inventoryRoutes";
+import addressRoutes from "./addressRoutes";
+import cartRoutes from "./cartRoutes";
+import couponRoutes from "./couponRoutes";
+import orderRoutes from "./orderRoutes";
+import paymentRoutes from "./paymentRoutes";
+import wishlistRoutes from "./wishlistRoutes";
+import walletRoutes from "./walletRoutes";
+import pageRoutes from "./pageRoutes";
+import bannerRoutes from "./bannerRoutes";
+import adminDashboardRoutes from "./adminDashboardRoutes";
+import adminReportRoutes from "./adminReportRoutes";
+import adminSettingsRoutes from "./adminSettingsRoutes";
+import adminAuditLogRoutes from "./adminAuditLogRoutes";
+import adminReviewRoutes from "./adminReviewRoutes";
+import returnRoutes from "./returnRoutes";
+import settingsRoutes from "./settingsRoutes";
+
+const router = Router();
+
+router.use("/auth", authRoutes);
+router.use("/users", userRoutes);
+router.use("/categories", categoryRoutes);
+router.use("/products", productRoutes);
+router.use("/admin/inventory", inventoryRoutes);
+router.use("/addresses", addressRoutes);
+router.use("/cart", cartRoutes);
+router.use("/coupons", couponRoutes);
+router.use("/orders", orderRoutes);
+router.use("/payments", paymentRoutes);
+router.use("/wishlist", wishlistRoutes);
+router.use("/wallet", walletRoutes);
+router.use("/pages", pageRoutes);
+router.use("/banners", bannerRoutes);
+router.use("/admin/dashboard", adminDashboardRoutes);
+router.use("/admin/reports", adminReportRoutes);
+router.use("/admin/settings", adminSettingsRoutes);
+router.use("/admin/audit-logs", adminAuditLogRoutes);
+router.use("/admin/reviews", adminReviewRoutes);
+router.use("/returns", returnRoutes);
+router.use("/settings", settingsRoutes);
+
+export default router;
