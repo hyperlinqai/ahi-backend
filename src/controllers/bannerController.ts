@@ -15,7 +15,7 @@ export const getBanners = async (req: Request, res: Response, next: NextFunction
         const position = req.query.position as string | undefined;
 
         // Construct where clauses dynamically
-        const whereConditions = [];
+        const whereConditions: any[] = [];
         if (!fetchAll) {
             whereConditions.push(eq(banners.isActive, true));
         }
