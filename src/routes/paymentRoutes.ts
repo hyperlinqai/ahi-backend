@@ -10,6 +10,7 @@ import {
 
 import {
     createRazorpayOrder,
+    createGuestRazorpayOrder,
     verifyPayment,
     getPaymentHistory,
     getPaymentById,
@@ -21,11 +22,12 @@ const router = Router();
 // ==========================================
 // USER ROUTES (Checkout Integrity & Verification)
 // ==========================================
+router.post("/guest/create-order", createGuestRazorpayOrder);
+router.post("/verify", validate(verifyPaymentSchema), verifyPayment);
+
 router.use(authenticate);
 
 router.post("/create-order", validate(createRazorpayOrderSchema), createRazorpayOrder);
-// NOTE: Verify payment is an explicit execution map verifying structural HMAC signatures directly via Razorpay
-router.post("/verify", validate(verifyPaymentSchema), verifyPayment);
 router.get("/history", getPaymentHistory);
 
 // ==========================================

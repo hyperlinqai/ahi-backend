@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+    validateCoupon,
     getAllCoupons,
     getCouponById,
     createCoupon,
@@ -12,6 +13,7 @@ import { authorizeAdmin } from "../middleware/authorizeAdmin";
 import { validate } from "../middleware/validateRequest";
 import {
     createCouponSchema,
+    validateCouponSchema,
     updateCouponSchema,
     getCouponUsagesSchema
 } from "../schemas/coupon.schema";
@@ -23,6 +25,8 @@ router.use((req, res, next) => {
     console.log("🎯 Coupon router reached:", req.method, req.path);
     next();
 });
+
+router.post("/validate", validate(validateCouponSchema), validateCoupon);
 
 // Protect all coupon routes
 router.use(authenticate);

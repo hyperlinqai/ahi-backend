@@ -1,8 +1,91 @@
 import { Request, Response, NextFunction } from "express";
 import db from "../db";
-import { coupons, orders } from "../db/schema";
+import { coupons, orders, users, couponUsages } from "../db/schema";
 import { eq, and, or, ilike, lte, gt, desc, count, isNull, SQL } from "drizzle-orm";
 import { AppError } from "../utils/AppError";
+
+function computeCouponDiscount(coupon: typeof coupons.$inferSelect, subtotal: number) {
+    if (coupon.minOrderValue && subtotal < coupon.minOrderValue) {
+        throw new AppError(`Minimum order value for this coupon is Rs. ${coupon.minOrderValue}.`, 400);
+    }
+
+    if (coupon.type === "FLAT") {
+        return Math.min(coupon.discountValue, subtotal);
+    }
+
+    if (coupon.type === "PERCENTAGE") {
+        let discount = subtotal * (coupon.discountValue / 100);
+        if (coupon.maxDiscount && discount > coupon.maxDiscount) {
+            discount = coupon.maxDiscount;
+        }
+        return Math.min(discount, subtotal);
+    }
+
+    return 0;
+}
+
+export async function resolveCouponForCheckout(params: {
+    code: string;
+    subtotal: number;
+    userId?: string;
+    email?: string;
+}) {
+    const normalizedCode = params.code.trim().toUpperCase();
+    const now = new Date();
+
+    const coupon = await db.query.coupons.findFirst({
+        where: eq(coupons.code, normalizedCode),
+    });
+
+    if (!coupon) {
+        throw new AppError("Invalid coupon code.", 404);
+    }
+
+    if (!coupon.isActive) {
+        throw new AppError("This coupon is not active.", 400);
+    }
+
+    if (coupon.startDate && coupon.startDate > now) {
+        throw new AppError("This coupon is not active yet.", 400);
+    }
+
+    if (coupon.expiresAt && coupon.expiresAt < now) {
+        throw new AppError("This coupon has expired.", 400);
+    }
+
+    if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) {
+        throw new AppError("This coupon has reached its usage limit.", 400);
+    }
+
+    let userId = params.userId;
+
+    if (!userId && params.email) {
+        const existingUser = await db.query.users.findFirst({
+            where: eq(users.email, params.email.trim().toLowerCase()),
+            columns: { id: true },
+        });
+        userId = existingUser?.id;
+    }
+
+    if (coupon.perUserLimit && userId) {
+        const [{ count: usageCount }] = await db
+            .select({ count: count() })
+            .from(couponUsages)
+            .where(and(eq(couponUsages.couponId, coupon.id), eq(couponUsages.userId, userId)));
+
+        if (usageCount >= coupon.perUserLimit) {
+            throw new AppError("You have already used this coupon the maximum number of times.", 400);
+        }
+    }
+
+    const discount = computeCouponDiscount(coupon, params.subtotal);
+
+    return {
+        coupon,
+        discount,
+        total: Math.max(params.subtotal - discount, 0),
+    };
+}
 
 // Get all coupons (paginated)
 export const getAllCoupons = async (req: Request, res: Response, next: NextFunction) => {
@@ -98,6 +181,30 @@ export const getCouponById = async (req: Request, res: Response, next: NextFunct
         res.status(200).json({
             success: true,
             data: coupon
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const validateCoupon = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { code, subtotal, email } = req.body;
+        const resolved = await resolveCouponForCheckout({
+            code,
+            subtotal,
+            email,
+            userId: req.user?.id,
+        });
+
+        res.status(200).json({
+            success: true,
+            data: {
+                couponId: resolved.coupon.id,
+                code: resolved.coupon.code,
+                discount: resolved.discount,
+                total: resolved.total,
+            },
         });
     } catch (error) {
         next(error);

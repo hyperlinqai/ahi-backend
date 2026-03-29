@@ -6,6 +6,7 @@ import { updateOrderStatusSchema } from "../schemas/order.schema";
 
 import {
     placeOrder,
+    placeGuestOrder,
     getMyOrders,
     getAllOrders,
     getOrderById,
@@ -20,6 +21,8 @@ const router = Router();
 // ==========================================
 // USER ROUTES (Checkout & Operations)
 // ==========================================
+router.post("/guest", placeGuestOrder);
+
 router.use(authenticate);
 
 router.post("/", placeOrder);

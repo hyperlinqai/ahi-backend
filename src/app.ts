@@ -7,6 +7,28 @@ import { AppError } from "./utils/AppError";
 import routes from "./routes";
 
 const app = express();
+const allowedOrigins = new Set(config.cors.origins);
+
+const corsOptions: cors.CorsOptions = {
+    origin(origin, callback) {
+        // Allow same-origin server calls, health checks, and non-browser clients.
+        if (!origin) {
+            callback(null, true);
+            return;
+        }
+
+        if (allowedOrigins.has(origin)) {
+            callback(null, true);
+            return;
+        }
+
+        callback(new AppError(`CORS origin not allowed: ${origin}`, 403));
+    },
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    optionsSuccessStatus: 204,
+};
 
 // Body parser
 app.use(express.json());
@@ -17,14 +39,8 @@ if (config.nodeEnv === "development") {
 }
 
 // Enable CORS
-app.use(
-    cors({
-        origin: config.cors.origins,
-        credentials: true,
-        allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    })
-);
+app.use(cors(corsOptions));
+app.options(/(.*)/, cors(corsOptions));
 
 // Health Check
 app.get("/", (req, res) => {

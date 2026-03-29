@@ -19,6 +19,32 @@ const enrichProduct = (product: any) => {
     return { ...rest, avgRating, reviewCount };
 };
 
+async function resolveCategoryIds(categoryValue: string) {
+    const matchingCategories = await db.query.categories.findMany({
+        where: or(eq(categories.id, categoryValue), eq(categories.slug, categoryValue)),
+        with: {
+            children: {
+                columns: { id: true },
+            },
+        },
+    });
+
+    if (matchingCategories.length === 0) {
+        return [];
+    }
+
+    const resolvedIds = new Set<string>();
+
+    for (const category of matchingCategories) {
+        resolvedIds.add(category.id);
+        for (const child of category.children) {
+            resolvedIds.add(child.id);
+        }
+    }
+
+    return Array.from(resolvedIds);
+}
+
 export const getAllProducts = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const page = parseInt(req.query.page as string) || 1;
@@ -28,13 +54,22 @@ export const getAllProducts = async (req: Request, res: Response, next: NextFunc
         const { category, minPrice, maxPrice, inStock, isFeatured, brand, sort } = req.query;
 
         const conditions: SQL<unknown>[] = [];
-
-        if (category) conditions.push(eq(products.categoryId, category as string));
         if (brand) conditions.push(eq(products.brand, brand as string));
         if (isFeatured === 'true') conditions.push(eq(products.isFeatured, true));
 
         if (minPrice) conditions.push(gte(products.price, parseFloat(minPrice as string)));
         if (maxPrice) conditions.push(lte(products.price, parseFloat(maxPrice as string)));
+
+        if (category) {
+            const categoryValue = category as string;
+            const resolvedCategoryIds = await resolveCategoryIds(categoryValue);
+
+            if (resolvedCategoryIds.length > 0) {
+                conditions.push(inArray(products.categoryId, resolvedCategoryIds));
+            } else {
+                conditions.push(eq(products.categoryId, categoryValue));
+            }
+        }
 
         if (inStock === 'true') {
             const inStockSubquery = db.select({ id: productVariants.productId })
@@ -164,7 +199,16 @@ export const searchProducts = async (req: Request, res: Response, next: NextFunc
             if (searchCondition) conditions.push(searchCondition);
         }
 
-        if (category) conditions.push(eq(products.categoryId, category as string));
+        if (category) {
+            const categoryValue = category as string;
+            const resolvedCategoryIds = await resolveCategoryIds(categoryValue);
+
+            if (resolvedCategoryIds.length > 0) {
+                conditions.push(inArray(products.categoryId, resolvedCategoryIds));
+            } else {
+                conditions.push(eq(products.categoryId, categoryValue));
+            }
+        }
         if (minPrice) conditions.push(gte(products.price, parseFloat(minPrice as string)));
         if (maxPrice) conditions.push(lte(products.price, parseFloat(maxPrice as string)));
 

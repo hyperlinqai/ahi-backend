@@ -23,6 +23,14 @@ export const createCouponSchema = z.object({
     })
 });
 
+export const validateCouponSchema = z.object({
+    body: z.object({
+        code: z.string().min(3, "Coupon code must be at least 3 characters").max(20),
+        subtotal: z.number().min(0, "Subtotal must be valid"),
+        email: z.string().email().optional(),
+    }),
+});
+
 export const updateCouponSchema = z.object({
     body: z.object({
         code: z.string().min(3).max(20).toUpperCase().optional(),

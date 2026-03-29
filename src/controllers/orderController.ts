@@ -1,7 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import { AppError } from "../utils/AppError";
 import db from "../db";
-import { addresses, carts, settings, orders, orderItems, productVariants, inventoryLogs, coupons, couponUsages, cartItems, returnRequests, returnRequestImages } from "../db/schema";
+import bcrypt from "bcrypt";
+import crypto from "crypto";
+import { resolveCouponForCheckout } from "./couponController";
+import { addresses, carts, settings, orders, orderItems, productVariants, inventoryLogs, coupons, couponUsages, cartItems, returnRequests, returnRequestImages, users, products } from "../db/schema";
 import { eq, and, asc, desc, count, sql, gte, lte, SQL } from "drizzle-orm";
 // @ts-ignore
 import PDFDocument from "pdfkit";
@@ -27,6 +30,162 @@ const computeCartTotals = (cart: any) => {
     const total = subtotal - discount > 0 ? subtotal - discount : 0;
     return { subtotal, discount, total };
 };
+
+type CheckoutItemInput = {
+    productId: string;
+    variantId: string;
+    quantity: number;
+};
+
+type ValidatedCheckoutItem = {
+    product: any;
+    variant: any;
+    quantity: number;
+};
+
+async function generateOrderNumber() {
+    const orderSettings = await db.query.settings.findMany({
+        where: eq(settings.group, "defaults")
+    });
+    const settingsMap: Record<string, string> = {};
+    for (const s of orderSettings) settingsMap[s.key] = s.value;
+
+    const prefix = settingsMap.orderPrefix || "AHI";
+    const separator = settingsMap.orderSeparator || "-";
+    const digits = parseInt(settingsMap.orderDigits || "5", 10);
+    const includeYear = settingsMap.orderIncludeYear !== "false";
+
+    const date = new Date();
+    const randomNum = Math.floor(Math.pow(10, digits - 1) + Math.random() * 9 * Math.pow(10, digits - 1));
+
+    return includeYear
+        ? `${prefix}${separator}${date.getFullYear()}${separator}${randomNum}`
+        : `${prefix}${separator}${randomNum}`;
+}
+
+async function validateCheckoutItems(items: CheckoutItemInput[]) {
+    if (!items.length) {
+        throw new AppError("Your cart is empty.", 400);
+    }
+
+    const enrichedItems: ValidatedCheckoutItem[] = [];
+
+    for (const item of items) {
+        const product = await db.query.products.findFirst({
+            where: eq(products.id, item.productId),
+            with: { variants: true }
+        });
+
+        if (!product) {
+            throw new AppError("One or more products are unavailable.", 404);
+        }
+
+        const selectedVariant = product.variants.find((variant: any) => variant.id === item.variantId);
+        if (!selectedVariant || selectedVariant.productId !== product.id) {
+            throw new AppError(`Selected variant is invalid for ${product.title}`, 400);
+        }
+
+        if (item.quantity > selectedVariant.stock) {
+            throw new AppError(`Insufficient stock for ${product.title}`, 400);
+        }
+
+        enrichedItems.push({
+            product,
+            variant: selectedVariant,
+            quantity: item.quantity,
+        });
+    }
+
+    return enrichedItems;
+}
+
+async function createOrderFromItems(params: {
+    tx?: any;
+    userId: string;
+    addressId: string;
+    items: CheckoutItemInput[];
+    couponCode?: string;
+    email?: string;
+}) {
+    const validatedItems = await validateCheckoutItems(params.items);
+    const subtotal = validatedItems.reduce(
+        (sum, item) => sum + item.product.price * item.quantity,
+        0
+    );
+    const orderNumber = await generateOrderNumber();
+    const resolvedCoupon = params.couponCode
+        ? await resolveCouponForCheckout({
+            code: params.couponCode,
+            subtotal,
+            userId: params.userId,
+            email: params.email,
+        })
+        : null;
+    const discount = resolvedCoupon?.discount || 0;
+    const total = resolvedCoupon?.total ?? subtotal;
+
+    const runInTransaction = async (tx: any) => {
+        const [order] = await tx.insert(orders).values({
+            orderNumber,
+            userId: params.userId,
+            addressId: params.addressId,
+            subtotal,
+            discount,
+            total,
+            appliedCouponId: resolvedCoupon?.coupon.id || null,
+        }).returning();
+
+        await tx.insert(orderItems).values(
+            validatedItems.map((item) => ({
+                orderId: order.id,
+                productId: item.product.id,
+                variantId: item.variant.id,
+                productName: item.product.title,
+                sku: item.variant.sku,
+                price: item.product.price,
+                quantity: item.quantity,
+            }))
+        );
+
+        for (const item of validatedItems) {
+            const [updatedVariant] = await tx.update(productVariants)
+                .set({ stock: sql`${productVariants.stock} - ${item.quantity}` })
+                .where(eq(productVariants.id, item.variant.id))
+                .returning();
+
+            if (updatedVariant.stock < 0) {
+                throw new Error(`Critical transaction boundary explicitly intercepted negative floats dropping stock mapped to ${item.product.title}`);
+            }
+
+            await tx.insert(inventoryLogs).values({
+                variantId: item.variant.id,
+                changeType: "ORDER_PLACED",
+                prevStock: item.variant.stock,
+                newStock: updatedVariant.stock,
+                changedById: params.userId
+            });
+        }
+
+        if (resolvedCoupon) {
+            await tx.update(coupons)
+                .set({ usageCount: sql`${coupons.usageCount} + 1` })
+                .where(eq(coupons.id, resolvedCoupon.coupon.id));
+
+            await tx.insert(couponUsages).values({
+                couponId: resolvedCoupon.coupon.id,
+                userId: params.userId,
+            });
+        }
+
+        return order;
+    };
+
+    const result = params.tx
+        ? await runInTransaction(params.tx)
+        : await db.transaction(runInTransaction);
+
+    return result;
+}
 
 // ==========================================
 // USER ROUTES 
@@ -76,23 +235,7 @@ export const placeOrder = async (req: Request, res: Response, next: NextFunction
             }
         }
 
-        // Generate order number from store settings (fallback to defaults)
-        const orderSettings = await db.query.settings.findMany({
-            where: eq(settings.group, "defaults")
-        });
-        const settingsMap: Record<string, string> = {};
-        for (const s of orderSettings) settingsMap[s.key] = s.value;
-
-        const prefix = settingsMap.orderPrefix || "AHI";
-        const separator = settingsMap.orderSeparator || "-";
-        const digits = parseInt(settingsMap.orderDigits || "5", 10);
-        const includeYear = settingsMap.orderIncludeYear !== "false";
-
-        const date = new Date();
-        const randomNum = Math.floor(Math.pow(10, digits - 1) + Math.random() * 9 * Math.pow(10, digits - 1));
-        const orderNumber = includeYear
-            ? `${prefix}${separator}${date.getFullYear()}${separator}${randomNum}`
-            : `${prefix}${separator}${randomNum}`;
+        const orderNumber = await generateOrderNumber();
 
         // 4. Fire execution bounded exclusively through $transaction guaranteeing state!
         const result = await db.transaction(async (tx) => {
@@ -180,6 +323,111 @@ export const placeOrder = async (req: Request, res: Response, next: NextFunction
         next(error);
     }
 }
+
+export const placeGuestOrder = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { email, items, address, couponCode } = req.body as {
+            email?: string;
+            items?: CheckoutItemInput[];
+            couponCode?: string;
+            address?: {
+                fullName?: string;
+                phone?: string;
+                addressLine1?: string;
+                addressLine2?: string;
+                city?: string;
+                state?: string;
+                country?: string;
+                pincode?: string;
+            };
+        };
+
+        if (!email) return next(new AppError("Email is required for checkout.", 400));
+        if (!items || !Array.isArray(items) || items.length === 0) return next(new AppError("Your cart is empty.", 400));
+        if (!address?.fullName || !address.phone || !address.addressLine1 || !address.city || !address.state || !address.country || !address.pincode) {
+            return next(new AppError("Please complete your delivery details.", 400));
+        }
+
+        const deliveryAddress = {
+            fullName: address.fullName,
+            phone: address.phone,
+            addressLine1: address.addressLine1,
+            addressLine2: address.addressLine2 || null,
+            city: address.city,
+            state: address.state,
+            country: address.country,
+            pincode: address.pincode,
+        };
+
+        const normalizedEmail = email.trim().toLowerCase();
+        const existingUser = await db.query.users.findFirst({
+            where: eq(users.email, normalizedEmail)
+        });
+
+        if (existingUser && existingUser.isVerified) {
+            return next(new AppError("An account with this email already exists. Please log in to continue.", 409));
+        }
+
+        const result = await db.transaction(async (tx) => {
+            let guestUser = existingUser;
+
+            if (!guestUser) {
+                const guestPassword = crypto.randomBytes(24).toString("hex");
+                const hashedPassword = await bcrypt.hash(guestPassword, 10);
+
+                [guestUser] = await tx.insert(users).values({
+                    email: normalizedEmail,
+                    name: deliveryAddress.fullName,
+                    phone: deliveryAddress.phone,
+                    password: hashedPassword,
+                    isVerified: false,
+                    role: "USER",
+                }).returning();
+            } else {
+                [guestUser] = await tx.update(users).set({
+                    name: deliveryAddress.fullName,
+                    phone: deliveryAddress.phone,
+                    updatedAt: new Date(),
+                }).where(eq(users.id, guestUser.id)).returning();
+            }
+
+            const [guestAddress] = await tx.insert(addresses).values({
+                fullName: deliveryAddress.fullName,
+                phone: deliveryAddress.phone,
+                addressLine1: deliveryAddress.addressLine1,
+                addressLine2: deliveryAddress.addressLine2,
+                city: deliveryAddress.city,
+                state: deliveryAddress.state,
+                country: deliveryAddress.country,
+                pincode: deliveryAddress.pincode,
+                isDefault: true,
+                userId: guestUser.id,
+            }).returning();
+
+            const order = await createOrderFromItems({
+                tx,
+                userId: guestUser.id,
+                addressId: guestAddress.id,
+                items,
+                couponCode,
+                email: normalizedEmail,
+            });
+
+            return { order };
+        });
+
+        res.status(201).json({
+            success: true,
+            message: "Guest order created successfully.",
+            data: result.order,
+        });
+    } catch (error: any) {
+        if (error.message?.includes("Critical transaction boundary explicitly intercepted negative floats")) {
+            return next(new AppError(error.message, 400));
+        }
+        next(error);
+    }
+};
 
 export const getMyOrders = async (req: Request, res: Response, next: NextFunction) => {
     try {

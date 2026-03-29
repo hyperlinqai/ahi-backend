@@ -82,6 +82,77 @@ export const createRazorpayOrder = async (req: Request, res: Response, next: Nex
     }
 }
 
+export const createGuestRazorpayOrder = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { orderId, email } = req.body;
+
+        if (!orderId || !email) {
+            return next(new AppError("Order ID and email are required.", 400));
+        }
+
+        const normalizedEmail = String(email).trim().toLowerCase();
+
+        const order = await db.query.orders.findFirst({
+            where: eq(orders.id, orderId),
+            with: {
+                user: {
+                    columns: { id: true, email: true }
+                }
+            }
+        });
+
+        if (!order || order.user.email.toLowerCase() !== normalizedEmail) {
+            return next(new AppError("Unable to start payment for this order.", 404));
+        }
+
+        if (order.status !== "PENDING" && order.status !== "PROCESSING") {
+            return next(new AppError("Order state logically prevents re-attempting explicit payment logic", 400));
+        }
+
+        const amountInPaise = Math.round(order.total * 100);
+        const razorpayOrder = await razorpay.orders.create({
+            amount: amountInPaise,
+            currency: "INR",
+            receipt: order.orderNumber,
+        });
+
+        const existingPayment = await db.query.payments.findFirst({
+            where: eq(payments.orderId, orderId)
+        });
+
+        let payment;
+        if (existingPayment) {
+            const [updatedPayment] = await db.update(payments).set({
+                userId: order.userId,
+                razorpayOrderId: razorpayOrder.id,
+                amount: order.total,
+                status: "PENDING",
+                razorpayPaymentId: null,
+                razorpaySignature: null,
+                updatedAt: new Date()
+            }).where(eq(payments.id, existingPayment.id)).returning();
+            payment = updatedPayment;
+        } else {
+            [payment] = await db.insert(payments).values({
+                userId: order.userId,
+                orderId,
+                razorpayOrderId: razorpayOrder.id,
+                amount: order.total,
+            }).returning();
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                razorpayOrder,
+                paymentId: payment.id
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 export const verifyPayment = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;

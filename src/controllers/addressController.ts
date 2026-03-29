@@ -28,7 +28,7 @@ export const getUserAddresses = async (req: Request, res: Response, next: NextFu
 export const addAddress = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = req.user!.id;
-        const { fullName, phone, addressLine1, addressLine2, city, state, pincode, isDefault } = req.body;
+        const { fullName, phone, addressLine1, addressLine2, city, state, country, pincode, isDefault } = req.body;
 
         const [existingAddressesResult] = await db.select({ count: count() })
             .from(addresses)
@@ -47,7 +47,7 @@ export const addAddress = async (req: Request, res: Response, next: NextFunction
                     .where(and(eq(addresses.userId, userId), eq(addresses.isDefault, true)));
 
                 const [insertedAddress] = await tx.insert(addresses).values({
-                    fullName, phone, addressLine1, addressLine2, city, state, pincode,
+                    fullName, phone, addressLine1, addressLine2, city, state, country, pincode,
                     isDefault: true,
                     userId
                 }).returning();
@@ -56,7 +56,7 @@ export const addAddress = async (req: Request, res: Response, next: NextFunction
             });
         } else {
             const [insertedAddress] = await db.insert(addresses).values({
-                fullName, phone, addressLine1, addressLine2, city, state, pincode,
+                fullName, phone, addressLine1, addressLine2, city, state, country, pincode,
                 isDefault: shouldBeDefault,
                 userId
             }).returning();
@@ -78,7 +78,7 @@ export const updateAddress = async (req: Request, res: Response, next: NextFunct
     try {
         const id = req.params.id as string;
         const userId = req.user!.id;
-        const { fullName, phone, addressLine1, addressLine2, city, state, pincode } = req.body;
+        const { fullName, phone, addressLine1, addressLine2, city, state, country, pincode } = req.body;
 
         const address = await db.query.addresses.findFirst({ where: eq(addresses.id, id) });
         if (!address || address.userId !== userId) {
@@ -86,7 +86,7 @@ export const updateAddress = async (req: Request, res: Response, next: NextFunct
         }
 
         const [updatedAddress] = await db.update(addresses).set({
-            fullName, phone, addressLine1, addressLine2, city, state, pincode,
+            fullName, phone, addressLine1, addressLine2, city, state, country, pincode,
             updatedAt: new Date()
         }).where(eq(addresses.id, id)).returning();
 
