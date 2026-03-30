@@ -4,7 +4,7 @@ import db from "../db";
 import { products, productVariants, productImages, categories, reviews } from "../db/schema";
 import { eq, or, and, gt, gte, lte, ilike, desc, asc, count, inArray, sql, SQL } from "drizzle-orm";
 import { AppError } from "../utils/AppError";
-import { uploadToCloudinary } from "../utils/cloudinary";
+import { uploadProductImage } from "../utils/cloudinary";
 
 const enrichProduct = (product: any) => {
     let avgRating = 0;
@@ -457,7 +457,7 @@ export const uploadProductImages = async (req: Request, res: Response, next: Nex
         const uploadedImages: any[] = [];
 
         for (const file of files) {
-            const uploadResult = await uploadToCloudinary(file.path, "products");
+            const uploadResult = await uploadProductImage(file.buffer);
             if (uploadResult) {
                 const [newImage] = await db.insert(productImages).values({
                     url: uploadResult.url,

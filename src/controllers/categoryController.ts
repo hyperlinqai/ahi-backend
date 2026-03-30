@@ -108,7 +108,7 @@ export const createCategory = async (req: Request, res: Response, next: NextFunc
 
         let imageUrl: string | null = null;
         if (req.file) {
-            const uploadResult = await uploadToCloudinary(req.file.path);
+            const uploadResult = await uploadToCloudinary(req.file.buffer, "categories");
             if (uploadResult) imageUrl = uploadResult.url;
         }
 
@@ -175,7 +175,7 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
 
         let imageUrl = category.imageUrl;
         if (req.file) {
-            const uploadResult = await uploadToCloudinary(req.file.path);
+            const uploadResult = await uploadToCloudinary(req.file.buffer, "categories");
             if (uploadResult) imageUrl = uploadResult.url;
         }
 

@@ -1,38 +1,113 @@
 import { v2 as cloudinary } from "cloudinary";
-import fs from "fs";
+import sharp from "sharp";
 
-// Configure cloudinary dynamically from environment parameters
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+interface ImageVariant {
+    suffix: string;
+    width: number;
+    quality: number;
+}
+
+const PRODUCT_VARIANTS: ImageVariant[] = [
+    { suffix: "thumb", width: 300, quality: 60 },
+    { suffix: "medium", width: 800, quality: 70 },
+    { suffix: "large", width: 1200, quality: 80 },
+];
+
+const BANNER_VARIANTS: ImageVariant[] = [
+    { suffix: "medium", width: 800, quality: 70 },
+    { suffix: "large", width: 1920, quality: 80 },
+];
+
+const CATEGORY_VARIANTS: ImageVariant[] = [
+    { suffix: "thumb", width: 300, quality: 60 },
+    { suffix: "medium", width: 600, quality: 70 },
+];
+
+function getVariants(folder: string): ImageVariant[] {
+    if (folder === "products") return PRODUCT_VARIANTS;
+    if (folder === "banners") return BANNER_VARIANTS;
+    if (folder === "categories") return CATEGORY_VARIANTS;
+    return [{ suffix: "default", width: 800, quality: 75 }];
+}
+
+async function processAndUpload(
+    buffer: Buffer,
+    folder: string,
+    variant: ImageVariant
+): Promise<{ url: string; publicId: string }> {
+    const webpBuffer = await sharp(buffer)
+        .resize(variant.width, undefined, { withoutEnlargement: true })
+        .webp({ quality: variant.quality })
+        .toBuffer();
+
+    return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+            {
+                folder,
+                format: "webp",
+                resource_type: "image",
+            },
+            (error, result) => {
+                if (error || !result) return reject(error || new Error("Upload failed"));
+                resolve({ url: result.secure_url, publicId: result.public_id });
+            }
+        );
+        stream.end(webpBuffer);
+    });
+}
+
+/**
+ * Upload a single image (used by banners, categories).
+ * Converts to WebP, compresses, and uploads the largest variant.
+ */
 export const uploadToCloudinary = async (
-    localFilePath: string,
+    fileBuffer: Buffer,
     folder: string = "general"
 ): Promise<{ url: string; publicId: string } | null> => {
     try {
-        if (!localFilePath) return null;
+        const variants = getVariants(folder);
+        const largest = variants[variants.length - 1];
+        return await processAndUpload(fileBuffer, folder, largest);
+    } catch (error) {
+        console.error("Cloudinary upload error:", error);
+        return null;
+    }
+};
 
-        // Upload the file on cloudinary natively allocating folder maps explicitly
-        const response = await cloudinary.uploader.upload(localFilePath, {
-            resource_type: "auto",
-            folder: folder
-        });
+/**
+ * Upload product image in multiple sizes (thumb, medium, large).
+ * Returns the large URL as primary, with all variant URLs.
+ */
+export const uploadProductImage = async (
+    fileBuffer: Buffer
+): Promise<{ url: string; publicId: string; variants: Record<string, string> } | null> => {
+    try {
+        const results = await Promise.all(
+            PRODUCT_VARIANTS.map(async (variant) => {
+                const result = await processAndUpload(fileBuffer, "products", variant);
+                return { suffix: variant.suffix, ...result };
+            })
+        );
 
-        // Delete the locally saved temporary file securely 
-        fs.unlinkSync(localFilePath);
+        const large = results.find((r) => r.suffix === "large") || results[results.length - 1];
+        const variantUrls: Record<string, string> = {};
+        for (const r of results) {
+            variantUrls[r.suffix] = r.url;
+        }
 
         return {
-            url: response.url,
-            publicId: response.public_id
+            url: large.url,
+            publicId: large.publicId,
+            variants: variantUrls,
         };
     } catch (error) {
-        // If operation fails natively, we still remove the file reliably
-        if (fs.existsSync(localFilePath)) {
-            fs.unlinkSync(localFilePath);
-        }
+        console.error("Product image upload error:", error);
         return null;
     }
 };
@@ -40,11 +115,10 @@ export const uploadToCloudinary = async (
 export const deleteFromCloudinary = async (publicId: string): Promise<boolean> => {
     try {
         if (!publicId) return false;
-
         const response = await cloudinary.uploader.destroy(publicId);
         return response.result === "ok";
     } catch (error) {
-        console.error("Cloudinary Deletion Error:", error);
+        console.error("Cloudinary deletion error:", error);
         return false;
     }
-}
+};

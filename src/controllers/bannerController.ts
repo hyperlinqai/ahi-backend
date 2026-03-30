@@ -47,10 +47,10 @@ export const createBanner = async (req: Request, res: Response, next: NextFuncti
 
         if (!file) return next(new AppError("Visual abstraction natively absent.", 400));
 
-        const uploadResult = await uploadToCloudinary(file.path, "banners");
+        const uploadResult = await uploadToCloudinary(file.buffer, "banners");
 
         if (!uploadResult) {
-            return next(new AppError("Cloudinary abstraction explicitly failed synchronously.", 500));
+            return next(new AppError("Failed to upload banner image.", 500));
         }
 
         const [newBanner] = await db.insert(banners).values({
@@ -97,7 +97,7 @@ export const updateBanner = async (req: Request, res: Response, next: NextFuncti
         if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null;
 
         if (file) {
-            const uploadResult = await uploadToCloudinary(file.path, "banners");
+            const uploadResult = await uploadToCloudinary(file.buffer, "banners");
             if (!uploadResult) {
                 return next(new AppError("Failed to upload image.", 500));
             }
