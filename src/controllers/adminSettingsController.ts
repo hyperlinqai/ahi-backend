@@ -3,7 +3,7 @@ import { AppError } from "../utils/AppError";
 import { logAudit } from "../utils/auditLogger";
 import db from "../db";
 import { settings } from "../db/schema";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 
 /**
  * Parse a stored string value back to its original type.
@@ -115,6 +115,52 @@ export const updateSettings = async (req: Request, res: Response, next: NextFunc
       message: "Settings updated successfully",
       data: grouped
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resetOrderCounter = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const orderSettings = await db.query.settings.findMany({
+      where: eq(settings.group, "defaults")
+    });
+    
+    const settingsMap: Record<string, string> = {};
+    for (const s of orderSettings) settingsMap[s.key] = s.value;
+    
+    const digits = parseInt(settingsMap.orderDigits || "5", 10);
+    // Offset by -1 so the next order starts precisely at the clean padding baseline (e.g. 10000)
+    const startNum = Math.pow(10, digits - 1) - 1;
+    
+    const existing = await db.query.settings.findFirst({
+        where: eq(settings.key, "orderCounter")
+    });
+
+    const serialized = String(startNum);
+    const oldValue = existing?.value;
+
+    await db.insert(settings)
+      .values({ key: "orderCounter", value: serialized, group: "defaults" })
+      .onConflictDoUpdate({
+        target: settings.key,
+        set: { value: serialized, group: "defaults", updatedAt: new Date() }
+      });
+
+    await logAudit(
+      req,
+      existing ? "UPDATE" : "CREATE",
+      "Setting",
+      "orderCounter",
+      oldValue || undefined,
+      serialized
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Sequence explicitly reset mapping baseline. Next bound triggers at ${startNum + 1}`
+    });
+
   } catch (error) {
     next(error);
   }

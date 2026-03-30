@@ -76,11 +76,21 @@ async function generateOrderNumber() {
     const includeYear = settingsMap.orderIncludeYear !== "false";
 
     const date = new Date();
-    const randomNum = Math.floor(Math.pow(10, digits - 1) + Math.random() * 9 * Math.pow(10, digits - 1));
+    
+    const defaultStart = Math.pow(10, digits - 1);
+    const [counterSetting] = await db.insert(settings)
+        .values({ group: "defaults", key: "orderCounter", value: String(defaultStart) })
+        .onConflictDoUpdate({
+            target: settings.key,
+            set: { value: sql`CAST(CAST(${settings.value} AS NUMERIC) + 1 AS TEXT)`, updatedAt: new Date() }
+        })
+        .returning();
+
+    const sequentialNum = counterSetting.value;
 
     return includeYear
-        ? `${prefix}${separator}${date.getFullYear()}${separator}${randomNum}`
-        : `${prefix}${separator}${randomNum}`;
+        ? `${prefix}${separator}${date.getFullYear()}${separator}${sequentialNum}`
+        : `${prefix}${separator}${sequentialNum}`;
 }
 
 async function validateCheckoutItems(items: CheckoutItemInput[]) {
@@ -143,7 +153,18 @@ async function createOrderFromItems(params: {
         })
         : null;
     const discount = resolvedCoupon?.discount || 0;
-    const total = resolvedCoupon?.total ?? subtotal;
+
+    // Check if COD shipping needs to be applied
+    const shippingSettingsRows = await db.query.settings.findMany({
+        where: eq(settings.group, "shipping")
+    });
+    const shippingSettings: Record<string, string> = {};
+    for (const s of shippingSettingsRows) shippingSettings[s.key] = s.value;
+
+    const codExtraCharge = parseFloat(shippingSettings.codExtraCharge) || 0;
+    const shippingCharge = params.paymentMethod === "COD" ? codExtraCharge : 0;
+
+    const total = (resolvedCoupon?.total ?? subtotal) + shippingCharge;
 
     const runInTransaction = async (tx: any) => {
         const [order] = await tx.insert(orders).values({

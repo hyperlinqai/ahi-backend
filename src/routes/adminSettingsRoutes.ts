@@ -4,7 +4,8 @@ import { authorizeAdmin } from "../middleware/authorizeAdmin";
 
 import {
   getAllSettings,
-  updateSettings
+  updateSettings,
+  resetOrderCounter
 } from "../controllers/adminSettingsController";
 
 const router = Router();
@@ -13,5 +14,6 @@ router.use(authenticate, authorizeAdmin());
 
 router.get("/", getAllSettings);
 router.put("/", updateSettings);
+router.post("/reset-order-counter", resetOrderCounter);
 
 export default router;
