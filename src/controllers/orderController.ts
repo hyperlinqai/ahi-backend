@@ -8,6 +8,7 @@ import { addresses, carts, settings, orders, orderItems, productVariants, invent
 import { eq, and, asc, desc, count, sql, gte, lte, SQL } from "drizzle-orm";
 // @ts-ignore
 import PDFDocument from "pdfkit";
+import { sendEmail } from "../utils/email";
 
 // Helper specifically designed returning strictly computed floating thresholds
 const computeCartTotals = (cart: any) => {
@@ -42,6 +43,25 @@ type ValidatedCheckoutItem = {
     variant: any;
     quantity: number;
 };
+
+type PaymentMethod = "ONLINE" | "COD";
+
+function resolvePaymentMethod(value: unknown): PaymentMethod {
+    return value === "COD" ? "COD" : "ONLINE";
+}
+
+async function assertCodEnabled() {
+    const codSetting = await db.query.settings.findFirst({
+        where: and(
+            eq(settings.group, "payment"),
+            eq(settings.key, "codEnabled")
+        )
+    });
+
+    if (codSetting && codSetting.value === "false") {
+        throw new AppError("Cash on Delivery is currently unavailable.", 400);
+    }
+}
 
 async function generateOrderNumber() {
     const orderSettings = await db.query.settings.findMany({
@@ -106,6 +126,7 @@ async function createOrderFromItems(params: {
     items: CheckoutItemInput[];
     couponCode?: string;
     email?: string;
+    paymentMethod: PaymentMethod;
 }) {
     const validatedItems = await validateCheckoutItems(params.items);
     const subtotal = validatedItems.reduce(
@@ -133,6 +154,8 @@ async function createOrderFromItems(params: {
             discount,
             total,
             appliedCouponId: resolvedCoupon?.coupon.id || null,
+            status: params.paymentMethod === "COD" ? "CONFIRMED" : "PENDING",
+            paymentStatus: "PENDING",
         }).returning();
 
         await tx.insert(orderItems).values(
@@ -187,6 +210,65 @@ async function createOrderFromItems(params: {
     return result;
 }
 
+const sendAdminOrderNotification = async (orderId: string) => {
+    try {
+        const order = await db.query.orders.findFirst({
+            where: eq(orders.id, orderId),
+            with: {
+                items: true,
+                address: true,
+                user: { columns: { name: true, email: true } }
+            }
+        });
+        if (!order) return;
+
+        const adminEmail = process.env.ADMIN_EMAIL || "ahijewellery@gmail.com";
+        const subject = `New Order Placed: ${order.orderNumber}`;
+        
+        let itemsHtml = "";
+        if (order.items && order.items.length > 0) {
+            itemsHtml = order.items.map((item: any) => 
+                `<tr>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.productName} (x${item.quantity})</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${item.price}</td>
+                </tr>`
+            ).join("");
+        }
+
+        const message = `
+            <div style="font-family: Arial, sans-serif; color: #333;">
+                <h2 style="color: #4CAF50;">New Order Received!</h2>
+                <p><strong>Order Number:</strong> ${order.orderNumber}</p>
+                <p><strong>Customer:</strong> ${order.address?.fullName} (${order.user?.email || "Guest"})</p>
+                <p><strong>Total:</strong> ${order.total}</p>
+                <p><strong>Payment Status:</strong> ${order.paymentStatus} | <strong>Status:</strong> ${order.status}</p>
+                <h3>Order Items:</h3>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 8px; border-bottom: 2px solid #ddd; text-align: left;">Product</th>
+                            <th style="padding: 8px; border-bottom: 2px solid #ddd; text-align: right;">Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+                <br/>
+                <a href="${process.env.ADMIN_URL || 'https://admin.ahijewellery.com'}/orders" style="background-color: #1f2937; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Orders in Admin Panel</a>
+            </div>
+        `;
+
+        await sendEmail({
+            email: adminEmail,
+            subject,
+            message
+        });
+    } catch (error) {
+        console.error("Failed to send admin order notification:", error);
+    }
+};
+
 // ==========================================
 // USER ROUTES 
 // ==========================================
@@ -194,9 +276,13 @@ async function createOrderFromItems(params: {
 export const placeOrder = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = req.user!.id;
-        const { addressId } = req.body;
+        const { addressId, paymentMethod: requestedPaymentMethod } = req.body;
+        const paymentMethod = resolvePaymentMethod(requestedPaymentMethod);
 
         if (!addressId) return next(new AppError("An Address Identifier is actively required for checkout natively", 400));
+        if (paymentMethod === "COD") {
+            await assertCodEnabled();
+        }
 
         // 1. Validate Mapping
         const address = await db.query.addresses.findFirst({
@@ -249,6 +335,8 @@ export const placeOrder = async (req: Request, res: Response, next: NextFunction
                 discount: calculated.discount,
                 total: calculated.total,
                 appliedCouponId: cart.couponId,
+                status: paymentMethod === "COD" ? "CONFIRMED" : "PENDING",
+                paymentStatus: "PENDING",
             }).returning();
 
             const itemsData = cart.items.map(item => ({
@@ -309,6 +397,9 @@ export const placeOrder = async (req: Request, res: Response, next: NextFunction
             return order;
         });
 
+        // Fire admin notification asynchronously
+        sendAdminOrderNotification(result.id).catch(console.error);
+
         res.status(201).json({
             success: true,
             message: "Execution executed safely binding securely.",
@@ -326,10 +417,11 @@ export const placeOrder = async (req: Request, res: Response, next: NextFunction
 
 export const placeGuestOrder = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { email, items, address, couponCode } = req.body as {
+        const { email, items, address, couponCode, paymentMethod: requestedPaymentMethod } = req.body as {
             email?: string;
             items?: CheckoutItemInput[];
             couponCode?: string;
+            paymentMethod?: PaymentMethod;
             address?: {
                 fullName?: string;
                 phone?: string;
@@ -341,11 +433,15 @@ export const placeGuestOrder = async (req: Request, res: Response, next: NextFun
                 pincode?: string;
             };
         };
+        const paymentMethod = resolvePaymentMethod(requestedPaymentMethod);
 
         if (!email) return next(new AppError("Email is required for checkout.", 400));
         if (!items || !Array.isArray(items) || items.length === 0) return next(new AppError("Your cart is empty.", 400));
         if (!address?.fullName || !address.phone || !address.addressLine1 || !address.city || !address.state || !address.country || !address.pincode) {
             return next(new AppError("Please complete your delivery details.", 400));
+        }
+        if (paymentMethod === "COD") {
+            await assertCodEnabled();
         }
 
         const deliveryAddress = {
@@ -411,10 +507,14 @@ export const placeGuestOrder = async (req: Request, res: Response, next: NextFun
                 items,
                 couponCode,
                 email: normalizedEmail,
+                paymentMethod,
             });
 
             return { order };
         });
+
+        // Fire admin notification asynchronously
+        sendAdminOrderNotification(result.order.id).catch(console.error);
 
         res.status(201).json({
             success: true,

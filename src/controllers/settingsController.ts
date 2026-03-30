@@ -1,7 +1,15 @@
 import { Request, Response, NextFunction } from "express";
 import db from "../db";
 import { settings } from "../db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
+
+function parseSettingValue(value: string): any {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
 
 /**
  * Public endpoint to fetch the Home Page Layout setting.
@@ -36,6 +44,40 @@ export const getHomePageLayout = async (req: Request, res: Response, next: NextF
     res.status(200).json({
       success: true,
       data: layout
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getCheckoutSettings = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const checkoutSettings = await db.query.settings.findMany({
+      where: inArray(settings.group, ["payment", "shipping"]),
+    });
+
+    const settingsMap = checkoutSettings.reduce<Record<string, Record<string, any>>>((acc, setting) => {
+      if (!acc[setting.group]) {
+        acc[setting.group] = {};
+      }
+
+      acc[setting.group][setting.key] = parseSettingValue(setting.value);
+      return acc;
+    }, {});
+
+    res.status(200).json({
+      success: true,
+      data: {
+        payment: {
+          codEnabled: settingsMap.payment?.codEnabled ?? true,
+          walletEnabled: settingsMap.payment?.walletEnabled ?? true,
+        },
+        shipping: {
+          defaultCharge: settingsMap.shipping?.defaultCharge ?? 0,
+          freeThreshold: settingsMap.shipping?.freeThreshold ?? 0,
+          codExtraCharge: settingsMap.shipping?.codExtraCharge ?? 0,
+        },
+      },
     });
   } catch (error) {
     next(error);

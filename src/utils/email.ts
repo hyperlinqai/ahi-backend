@@ -9,7 +9,7 @@ export const sendEmail = async (options: {
     subject: string;
     message: string;
 }) => {
-    await resend.emails.send({
+    const { data, error } = await resend.emails.send({
         from: process.env.FROM_EMAIL || "Ahi Jewellery <no-reply@ahijewellery.com>",
         to: options.email,
         subject: options.subject,
@@ -23,7 +23,13 @@ export const sendEmail = async (options: {
                         ${options.message}
                     </div>
                 </div>
-            </div>
         `,
     });
+
+    if (error) {
+        console.error("Resend API Error:", error);
+        throw new Error(error.message);
+    }
+
+    return data;
 };

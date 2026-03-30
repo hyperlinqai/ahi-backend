@@ -455,16 +455,23 @@ export const uploadProductImages = async (req: Request, res: Response, next: Nex
         if (!product) return next(new AppError("Product not found securely logically.", 404));
 
         const uploadedImages: any[] = [];
+        const existingImageCount = await db
+            .select({ count: count() })
+            .from(productImages)
+            .where(eq(productImages.productId, id));
 
-        for (const file of files) {
+        for (const [index, file] of files.entries()) {
             const uploadResult = await uploadProductImage(file.buffer);
-            if (uploadResult) {
-                const [newImage] = await db.insert(productImages).values({
-                    url: uploadResult.url,
-                    productId: id
-                }).returning();
-                uploadedImages.push(newImage);
+            if (!uploadResult) {
+                return next(new AppError("Failed to upload one or more product images.", 500));
             }
+
+            const [newImage] = await db.insert(productImages).values({
+                url: uploadResult.url,
+                productId: id,
+                sortOrder: Number(existingImageCount[0]?.count || 0) + index,
+            }).returning();
+            uploadedImages.push(newImage);
         }
 
         res.status(200).json({

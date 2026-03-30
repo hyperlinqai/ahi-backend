@@ -1,11 +1,46 @@
 import { v2 as cloudinary } from "cloudinary";
 import sharp from "sharp";
 
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+function resolveCloudinaryConfig() {
+    const cloudinaryUrl = process.env.CLOUDINARY_URL;
+
+    if (cloudinaryUrl) {
+        try {
+            const parsedUrl = new URL(cloudinaryUrl);
+            const cloudName = parsedUrl.hostname;
+            const apiKey = decodeURIComponent(parsedUrl.username);
+            const apiSecret = decodeURIComponent(parsedUrl.password);
+
+            if (cloudName && apiKey && apiSecret) {
+                return {
+                    cloud_name: cloudName,
+                    api_key: apiKey,
+                    api_secret: apiSecret,
+                };
+            }
+        } catch (error) {
+            console.error("Invalid CLOUDINARY_URL configuration:", error);
+        }
+    }
+
+    return {
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
+    };
+}
+
+const cloudinaryConfig = resolveCloudinaryConfig();
+
+cloudinary.config(cloudinaryConfig);
+
+function isCloudinaryConfigured() {
+    return Boolean(
+        cloudinaryConfig.cloud_name &&
+        cloudinaryConfig.api_key &&
+        cloudinaryConfig.api_secret
+    );
+}
 
 interface ImageVariant {
     suffix: string;
@@ -71,6 +106,10 @@ export const uploadToCloudinary = async (
     folder: string = "general"
 ): Promise<{ url: string; publicId: string } | null> => {
     try {
+        if (!isCloudinaryConfigured()) {
+            throw new Error("Cloudinary is not configured. Set CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET.");
+        }
+
         const variants = getVariants(folder);
         const largest = variants[variants.length - 1];
         return await processAndUpload(fileBuffer, folder, largest);
@@ -88,6 +127,10 @@ export const uploadProductImage = async (
     fileBuffer: Buffer
 ): Promise<{ url: string; publicId: string; variants: Record<string, string> } | null> => {
     try {
+        if (!isCloudinaryConfigured()) {
+            throw new Error("Cloudinary is not configured. Set CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET.");
+        }
+
         const results = await Promise.all(
             PRODUCT_VARIANTS.map(async (variant) => {
                 const result = await processAndUpload(fileBuffer, "products", variant);
