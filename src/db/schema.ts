@@ -224,8 +224,8 @@ export const orders = pgTable('Order', {
 export const orderItems = pgTable('OrderItem', {
   id: text('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
   orderId: text('orderId').references(() => orders.id, { onDelete: 'cascade' }).notNull(),
-  productId: text('productId').references(() => products.id).notNull(),
-  variantId: text('variantId').references(() => productVariants.id).notNull(),
+  productId: text('productId').references(() => products.id, { onDelete: 'set null' }),
+  variantId: text('variantId').references(() => productVariants.id, { onDelete: 'set null' }),
   productName: varchar('productName', { length: 255 }).notNull(),
   sku: varchar('sku', { length: 255 }).notNull(),
   price: doublePrecision('price').notNull(),

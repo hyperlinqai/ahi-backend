@@ -26,7 +26,8 @@ export const errorHandler = (
         error = new AppError(message, 400);
     }
 
-    const statusCode = error.statusCode || 500;
+    // Don't forward upstream API status codes (e.g. Razorpay 401) to the client
+    const statusCode = error.isOperational ? (error.statusCode || 500) : 500;
     const message = error.message || "Server Error";
 
     res.status(statusCode).json({
