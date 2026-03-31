@@ -283,10 +283,10 @@ export const getProductsByCategory = async (req: Request, res: Response, next: N
 
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { title, description, price, categoryId, brand, isFeatured, weight, length, width, height, metaTitle, metaDescription, metaKeywords, variants } = req.body;
+        const { title, description, price, categoryId, brand, isFeatured, weight, length, width, height, material, features, careInstructions, shippingInfo, returnPolicy, metaTitle, metaDescription, metaKeywords, variants } = req.body;
 
         const slug = slugify(title, { lower: true, strict: true });
-        
+
         const existingProduct = await db.query.products.findFirst({ where: eq(products.slug, slug) });
         if (existingProduct) {
             return next(new AppError("Product with corresponding title slug already explicitly exists securely.", 400));
@@ -305,6 +305,11 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
                 length: length ? parseFloat(length) : null,
                 width: width ? parseFloat(width) : null,
                 height: height ? parseFloat(height) : null,
+                material: material || null,
+                features: features || null,
+                careInstructions: careInstructions || null,
+                shippingInfo: shippingInfo || null,
+                returnPolicy: returnPolicy || null,
                 metaTitle,
                 metaDescription,
                 metaKeywords,
@@ -343,7 +348,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const id = req.params.id as string;
-        const { title, description, price, categoryId, brand, isFeatured, weight, length, width, height, metaTitle, metaDescription, metaKeywords, variants } = req.body;
+        const { title, description, price, categoryId, brand, isFeatured, weight, length, width, height, material, features, careInstructions, shippingInfo, returnPolicy, metaTitle, metaDescription, metaKeywords, variants } = req.body;
 
         const product = await db.query.products.findFirst({ where: eq(products.id, id) });
         if (!product) return next(new AppError("Product mapping missing securely.", 404));
@@ -369,6 +374,11 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
             length: length !== undefined ? parseFloat(length) : undefined,
             width: width !== undefined ? parseFloat(width) : undefined,
             height: height !== undefined ? parseFloat(height) : undefined,
+            material,
+            features,
+            careInstructions,
+            shippingInfo,
+            returnPolicy,
             metaTitle,
             metaDescription,
             metaKeywords,

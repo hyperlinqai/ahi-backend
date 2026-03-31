@@ -50,6 +50,31 @@ export const getHomePageLayout = async (req: Request, res: Response, next: NextF
   }
 };
 
+export const getStorePolicies = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const policySettings = await db.query.settings.findMany({
+      where: eq(settings.group, "policies"),
+    });
+
+    const policiesMap: Record<string, string> = {};
+    for (const setting of policySettings) {
+      policiesMap[setting.key] = setting.value;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        jewelleryCare: policiesMap.jewelleryCare || "",
+        shippingInfo: policiesMap.shippingInfo || "",
+        returnExchange: policiesMap.returnExchange || "",
+        disclaimer: policiesMap.disclaimer || "",
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getCheckoutSettings = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const checkoutSettings = await db.query.settings.findMany({
