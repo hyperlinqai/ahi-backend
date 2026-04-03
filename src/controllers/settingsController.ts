@@ -95,12 +95,18 @@ export const getCheckoutSettings = async (req: Request, res: Response, next: Nex
       data: {
         payment: {
           codEnabled: settingsMap.payment?.codEnabled ?? true,
+          paypalEnabled: settingsMap.payment?.paypalEnabled ?? false,
           walletEnabled: settingsMap.payment?.walletEnabled ?? true,
         },
         shipping: {
           defaultCharge: settingsMap.shipping?.defaultCharge ?? 0,
           freeThreshold: settingsMap.shipping?.freeThreshold ?? 0,
           codExtraCharge: settingsMap.shipping?.codExtraCharge ?? 0,
+        },
+        transactionCharges: {
+          codCharge: settingsMap.payment?.codTransactionCharge ?? 0,
+          razorpayCharge: settingsMap.payment?.razorpayTransactionCharge ?? 0,
+          paypalCharge: settingsMap.payment?.paypalTransactionCharge ?? 0,
         },
       },
     });

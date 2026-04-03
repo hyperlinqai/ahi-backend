@@ -3,6 +3,7 @@ import db from "../db";
 import { orders, payments, refunds } from "../db/schema";
 import { eq, desc } from "drizzle-orm";
 import { AppError } from "../utils/AppError";
+import { deductStockForOrder } from "./orderController";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import { config } from "../config";
@@ -185,6 +186,9 @@ export const verifyPayment = async (req: Request, res: Response, next: NextFunct
                     paymentStatus: "PAID",
                     updatedAt: new Date()
                 }).where(eq(orders.id, payment.orderId));
+
+                // Deduct stock now that payment is confirmed
+                await deductStockForOrder(payment.orderId, payment.userId, tx);
             });
 
             res.status(200).json({

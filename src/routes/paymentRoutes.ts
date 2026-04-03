@@ -5,7 +5,8 @@ import { validate } from "../middleware/validateRequest";
 import {
     createRazorpayOrderSchema,
     verifyPaymentSchema,
-    refundPaymentSchema
+    refundPaymentSchema,
+    verifyPaypalOrderSchema
 } from "../schemas/payment.schema";
 
 import {
@@ -16,6 +17,10 @@ import {
     getPaymentById,
     refundPayment
 } from "../controllers/paymentController";
+import {
+    verifyPaypalPayment,
+    createGuestPaypalOrder
+} from "../controllers/paypalController";
 
 const router = Router();
 
@@ -23,7 +28,9 @@ const router = Router();
 // USER ROUTES (Checkout Integrity & Verification)
 // ==========================================
 router.post("/guest/create-order", createGuestRazorpayOrder);
+router.post("/guest/create-order-paypal", createGuestPaypalOrder);
 router.post("/verify", validate(verifyPaymentSchema), verifyPayment);
+router.post("/verify-paypal", validate(verifyPaypalOrderSchema), verifyPaypalPayment);
 
 router.use(authenticate);
 

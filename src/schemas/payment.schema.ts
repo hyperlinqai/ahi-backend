@@ -14,6 +14,15 @@ export const verifyPaymentSchema = z.object({
     })
 });
 
+export const verifyPaypalOrderSchema = z.object({
+    body: z.object({
+        orderID: z.string(),
+        payerID: z.string(),
+        paymentID: z.string(),
+        orderId: z.string().uuid("Provided identifier must mathematically match Prisma explicit UUID structs")
+    })
+});
+
 export const refundPaymentSchema = z.object({
     body: z.object({
         amount: z.number().positive("Refund amount conceptually must be greater than natively zero").optional(),

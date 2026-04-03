@@ -44,10 +44,12 @@ type ValidatedCheckoutItem = {
     quantity: number;
 };
 
-type PaymentMethod = "ONLINE" | "COD";
+type PaymentMethod = "ONLINE" | "COD" | "PAYPAL";
 
 function resolvePaymentMethod(value: unknown): PaymentMethod {
-    return value === "COD" ? "COD" : "ONLINE";
+    if (value === "COD") return "COD";
+    if (value === "PAYPAL") return "PAYPAL";
+    return "ONLINE";
 }
 
 async function assertCodEnabled() {
@@ -129,6 +131,44 @@ async function validateCheckoutItems(items: CheckoutItemInput[]) {
     return enrichedItems;
 }
 
+/**
+ * Deduct stock for order items. Called at order creation for COD,
+ * or at payment verification for online/PayPal payments.
+ */
+export async function deductStockForOrder(orderId: string, changedById: string, tx?: any) {
+    const runner = async (trx: any) => {
+        const items = await trx.query.orderItems.findMany({
+            where: eq(orderItems.orderId, orderId),
+            with: { variant: true }
+        });
+
+        for (const item of items) {
+            const [updatedVariant] = await trx.update(productVariants)
+                .set({ stock: sql`${productVariants.stock} - ${item.quantity}` })
+                .where(eq(productVariants.id, item.variantId))
+                .returning();
+
+            if (updatedVariant.stock < 0) {
+                throw new Error(`Insufficient stock for ${item.productName}`);
+            }
+
+            await trx.insert(inventoryLogs).values({
+                variantId: item.variantId,
+                changeType: "ORDER_PLACED",
+                prevStock: item.variant.stock,
+                newStock: updatedVariant.stock,
+                changedById,
+            });
+        }
+    };
+
+    if (tx) {
+        await runner(tx);
+    } else {
+        await db.transaction(runner);
+    }
+}
+
 async function createOrderFromItems(params: {
     tx?: any;
     userId: string;
@@ -191,23 +231,10 @@ async function createOrderFromItems(params: {
             }))
         );
 
-        for (const item of validatedItems) {
-            const [updatedVariant] = await tx.update(productVariants)
-                .set({ stock: sql`${productVariants.stock} - ${item.quantity}` })
-                .where(eq(productVariants.id, item.variant.id))
-                .returning();
-
-            if (updatedVariant.stock < 0) {
-                throw new Error(`Critical transaction boundary explicitly intercepted negative floats dropping stock mapped to ${item.product.title}`);
-            }
-
-            await tx.insert(inventoryLogs).values({
-                variantId: item.variant.id,
-                changeType: "ORDER_PLACED",
-                prevStock: item.variant.stock,
-                newStock: updatedVariant.stock,
-                changedById: params.userId
-            });
+        // Only deduct stock immediately for COD orders.
+        // For online/PayPal payments, stock is deducted after payment verification.
+        if (params.paymentMethod === "COD") {
+            await deductStockForOrder(order.id, params.userId, tx);
         }
 
         if (resolvedCoupon) {
@@ -372,29 +399,9 @@ export const placeOrder = async (req: Request, res: Response, next: NextFunction
             
             await tx.insert(orderItems).values(itemsData);
 
-            // 4b. Stock Adjustments & Accounting Ledgers dynamically!
-            for (const item of cart.items) {
-                const variantTarget = item.variant;
-
-                // Decrease explicitly safely capturing returned values for safety checks
-                const [updatedVariant] = await tx.update(productVariants)
-                    .set({ stock: sql`${productVariants.stock} - ${item.quantity}` })
-                    .where(eq(productVariants.id, variantTarget.id))
-                    .returning();
-
-                // Check mathematically
-                if (updatedVariant.stock < 0) {
-                    throw new Error(`Critical transaction boundary explicitly intercepted negative floats dropping stock mapped to ${item.product.title}`);
-                }
-
-                // Attach historical ledger securely mapping to active request execution natively
-                await tx.insert(inventoryLogs).values({
-                    variantId: variantTarget.id,
-                    changeType: "ORDER_PLACED",
-                    prevStock: variantTarget.stock,
-                    newStock: updatedVariant.stock,
-                    changedById: userId
-                });
+            // 4b. Stock deduction — only for COD; online/PayPal deducted after payment verification
+            if (paymentMethod === "COD") {
+                await deductStockForOrder(order.id, userId, tx);
             }
 
             // 4c. Process Coupon Exhaustion Logic explicitly natively
